@@ -1,0 +1,77 @@
+-- By Lyrics
+
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local Camera = workspace.CurrentCamera
+
+-- Configurações
+local fov = 10
+local teamCheck = false
+local holdingMouse = false
+
+-- Desenho do FOV
+local FOVring = Drawing.new("Circle")
+FOVring.Visible = false
+FOVring.Thickness = 2
+FOVring.Color = Color3.fromRGB(255, 0, 0)
+FOVring.Filled = false
+FOVring.Radius = fov
+FOVring.Position = Camera.ViewportSize / 2
+
+local function updateDrawings()
+    FOVring.Position = Camera.ViewportSize / 2
+end
+
+local function isPlayerAlive(player)
+    local character = player.Character
+    return character and character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0
+end
+
+local function getClosestPlayerInFOV()
+    local nearest = nil
+    local shortestDistance = math.huge
+    local centerScreen = Camera.ViewportSize / 2
+    local localPlayer = Players.LocalPlayer
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= localPlayer and isPlayerAlive(player) and (not teamCheck or player.Team ~= localPlayer.Team) then
+            local character = player.Character
+            for _, part in ipairs(character:GetChildren()) do
+                if part:IsA("BasePart") then -- Verifica qualquer parte do corpo
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                    local distance = (Vector2.new(screenPos.X, screenPos.Y) - centerScreen).Magnitude
+
+                    if onScreen and distance < fov and distance < shortestDistance then
+                        shortestDistance = distance
+                        nearest = player
+                    end
+                end
+            end
+        end
+    end
+
+    return nearest
+end
+
+local function holdMouse1(state)
+    if state and not holdingMouse then
+        holdingMouse = true
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0) -- Pressiona Mouse1
+    elseif not state and holdingMouse then
+        holdingMouse = false
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    updateDrawings()
+    local closestPlayer = getClosestPlayerInFOV()
+    
+    if closestPlayer then
+        holdMouse1(true) -- Segura Mouse1 enquanto o player estiver no FOV
+    else
+        holdMouse1(false)
+    end
+end)
