@@ -1,17 +1,19 @@
--- By Lyrics
-
-
-local RunService = game:GetService("RunService")
+-- Verificação
 local Players = game:GetService("Players")
+if Players.LocalPlayer.Name ~= "superlightzxs" then return end
+
+--// Serviços
+local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local Camera = workspace.CurrentCamera
 
--- Configurações
-local fov = 10
+--// Configurações
+local fov = 9
 local teamCheck = false
 local holdingMouse = false
+local Settings = { Size = 1.30 }
 
--- Desenho do FOV
+-- Fov
 local FOVring = Drawing.new("Circle")
 FOVring.Visible = false
 FOVring.Thickness = 2
@@ -25,8 +27,7 @@ local function updateDrawings()
 end
 
 local function isPlayerAlive(player)
-    local character = player.Character
-    return character and character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0
+    return player and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0
 end
 
 local function getClosestPlayerInFOV()
@@ -39,7 +40,7 @@ local function getClosestPlayerInFOV()
         if player ~= localPlayer and isPlayerAlive(player) and (not teamCheck or player.Team ~= localPlayer.Team) then
             local character = player.Character
             for _, part in ipairs(character:GetChildren()) do
-                if part:IsA("BasePart") then -- Verifica qualquer parte do corpo
+                if part:IsA("BasePart") then
                     local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
                     local distance = (Vector2.new(screenPos.X, screenPos.Y) - centerScreen).Magnitude
 
@@ -58,20 +59,71 @@ end
 local function holdMouse1(state)
     if state and not holdingMouse then
         holdingMouse = true
-        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0) -- Pressiona Mouse1
+        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
     elseif not state and holdingMouse then
         holdingMouse = false
         VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
     end
 end
 
+-- cabeça com proteção contra resets
+local function ResizeHead(player)
+    task.spawn(function()
+        while player and player.Character == nil do task.wait() end
+        local char = player.Character
+        if not char then return end
+
+        local head = char:WaitForChild("Head", 5)
+        local hum = char:FindFirstChild("Humanoid")
+
+        if head and hum then
+            head.Massless = true
+            head.Transparency = 0.1
+            head.Size = Vector3.new(Settings.Size, Settings.Size, Settings.Size)
+            head.CanCollide = false
+
+            -- Mantém o tamanho da cabeça a cada 1 segundo
+            while player and player.Character and player.Character:FindFirstChild("Head") and player.Character:FindFirstChild("Humanoid") do
+                head.Size = Vector3.new(Settings.Size, Settings.Size, Settings.Size)
+                task.wait(1)
+            end
+        end
+    end)
+end
+
+-- jogadores existentes
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= Players.LocalPlayer then
+        ResizeHead(player)
+    end
+end
+
+-- Jogadores que entrarem
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        if player ~= Players.LocalPlayer then
+            ResizeHead(player)
+        end
+    end)
+end)
+
+-- Loop
 RunService.RenderStepped:Connect(function()
     updateDrawings()
     local closestPlayer = getClosestPlayerInFOV()
-    
+
     if closestPlayer then
-        holdMouse1(true) -- Segura Mouse1 enquanto o player estiver no FOV
+        holdMouse1(true)
     else
         holdMouse1(false)
     end
+end)
+
+-- Hook para municao infinita
+local old
+old = hookmetamethod(game, "__index", function(this, index)
+    if not checkcaller() and tostring(this) == "CurrentAmmo" and index == "Value" then
+        return 2
+    end
+    return old(this, index)
 end)
